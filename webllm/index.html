@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web LLM Chat</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background-color: #f4f4f9;
+        color: #333;
+        display: flex;
+        justify-content: center;
+        padding-top: 40px;
+      }
+      #app-container {
+        width: 90%;
+        max-width: 700px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #444;
+      }
+      #loading-status {
+        text-align: center;
+        font-size: 1.1em;
+        margin: 20px;
+      }
+      #webgpu-error {
+        text-align: center;
+        font-size: 1.2em;
+        color: #dc3545;
+        margin: 20px;
+        padding: 20px;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 8px;
+      }
+      #model-selection {
+        display: none;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+      }
+      #model-selection h3 {
+        margin-top: 0;
+        color: #495057;
+      }
+      #model-area {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #model-select {
+        flex-grow: 1;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      #load-model-button {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      #load-model-button:disabled {
+        background: #999;
+        cursor: not-allowed;
+      }
+      #chat-container {
+        display: none; /* Hidden by default */
+      }
+      #chat-output {
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+      .message {
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 15px;
+        max-width: 80%;
+        line-height: 1.4;
+        position: relative;
+      }
+      .user-message {
+        background-color: #007bff;
+        color: white;
+        align-self: flex-end;
+        margin-left: auto;
+      }
+      .bot-message {
+        background-color: #e9ecef;
+        color: #333;
+        align-self: flex-start;
+      }
+      .inference-time {
+        font-size: 0.7em;
+        opacity: 0.7;
+        display: block;
+        margin-top: 4px;
+        font-style: italic;
+      }
+      .user-message .inference-time {
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .bot-message .inference-time {
+        color: rgba(0, 0, 0, 0.6);
+      }
+      #input-area {
+        display: flex;
+      }
+      #user-input {
+        flex-grow: 1;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 4px;
+      }
+      #send-button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        margin-left: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #send-button:disabled {
+        background: #999;
+        cursor: not-allowed;
+      }
+      .article-section {
+        display: none; /* Hidden by default */
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+      }
+      .article-section h3 {
+        margin-top: 0;
+        color: #495057;
+      }
+      .article-input {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      #article-url {
+        flex-grow: 1;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      #extract-button {
+        background: #17a2b8;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      #extract-button:disabled {
+        background: #999;
+        cursor: not-allowed;
+      }
+      #extraction-status {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 10px;
+      }
+      .article-content {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        background-color: white;
+        display: none;
+      }
+      .article-content h4 {
+        margin-top: 0;
+        color: #495057;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+      }
+      .article-content .content-text {
+        line-height: 1.6;
+        color: #333;
+      }
+      .llm-prompt {
+        margin-top: 15px;
+        padding: 15px;
+        background-color: #f1f3f4;
+        border-radius: 4px;
+        display: none;
+      }
+      .llm-prompt h5 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #495057;
+      }
+      .prompt-input-area {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #llm-prompt-textarea {
+        width: 100%;
+        min-height: 80px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 4px;
+        resize: vertical;
+        font-family: inherit;
+        font-size: 14px;
+      }
+      #send-prompt-button {
+        align-self: flex-start;
+        background: #6f42c1;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      #send-prompt-button:disabled {
+        background: #999;
+        cursor: not-allowed;
+      }
+      .LLM-response {
+        margin-top: 15px;
+        padding: 15px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        display: none;
+      }
+      .LLM-response h5 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #495057;
+      }
+      .response-content {
+        line-height: 1.6;
+        color: #333;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-container">
+      <h1>Web LLM Chat 🧠</h1>
+
+      <div id="loading-status">Checking WebGPU support...</div>
+
+      <div id="webgpu-error" style="display: none">
+        <h3>🚫 WebGPU Not Supported</h3>
+        <p>Sorry, your browser doesn't support WebGPU or it's not enabled.</p>
+        <p><strong>To use this app, please:</strong></p>
+        <ul style="text-align: left; display: inline-block">
+          <li>Use Chrome 113+ or Edge 113+</li>
+          <li>Enable WebGPU in browser flags if needed</li>
+          <li>Make sure you have a compatible GPU</li>
+        </ul>
+      </div>
+
+      <div id="model-selection">
+        <h3>🤖 Select Model</h3>
+        <div id="model-area">
+          <select id="model-select">
+            <option value="Llama-3.2-1B-Instruct-q0f16-MLC">
+              Llama 3.2 1B Instruct
+            </option>
+            <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">
+              Qwen2.5 1.5B Instruct
+            </option>
+            <option value="SmolLM2-1.7B-Instruct-q4f16_1-MLC">
+              SmolLM2 1.7B Instruct
+            </option>
+            <option value="Qwen3-1.7B-q4f16_1-MLC">Qwen3-1.7B</option>
+          </select>
+          <button id="load-model-button">Load Model</button>
+        </div>
+      </div>
+
+      <div id="chat-container">
+        <div id="chat-output"></div>
+        <div id="input-area">
+          <input
+            type="text"
+            id="user-input"
+            placeholder="Type your message here..."
+          />
+          <button id="send-button">Send</button>
+        </div>
+      </div>
+
+      <div class="article-section">
+        <h3>📰 Article Extractor</h3>
+        <div class="article-input">
+          <input
+            type="url"
+            id="article-url"
+            placeholder="Enter article URL..."
+          />
+          <button id="extract-button">Extract</button>
+        </div>
+        <div id="extraction-status"></div>
+        <div class="article-content">
+          <h4 id="article-title"></h4>
+          <div class="content-text" id="article-text"></div>
+        </div>
+        <div class="llm-prompt">
+          <h5>🤖 Ask about this article</h5>
+          <div class="prompt-input-area">
+            <textarea
+              id="llm-prompt-textarea"
+              placeholder="Enter your question or prompt about the article..."
+            ></textarea>
+            <button id="send-prompt-button">Send Prompt</button>
+          </div>
+        </div>
+
+        <div class="LLM-response" id="llm-response">
+          <h5>🤖 LLM Response</h5>
+          <div class="response-content" id="response-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { CreateMLCEngine } from "https://esm.run/@mlc-ai/web-llm";
+      import { Readability } from "https://esm.run/@mozilla/readability";
+      import { encode } from "https://esm.run/gpt-tokenizer";
+
+      async function main() {
+        // --- Check WebGPU Support First ---
+        const loadingStatus = document.getElementById("loading-status");
+        const webgpuError = document.getElementById("webgpu-error");
+        const modelSelection = document.getElementById("model-selection");
+        const articleSection = document.querySelector(".article-section");
+
+        if (!navigator.gpu) {
+          loadingStatus.style.display = "none";
+          webgpuError.style.display = "block";
+          return; // Stop execution if no WebGPU
+        }
+
+        // Show model selection
+        loadingStatus.style.display = "none";
+        modelSelection.style.display = "block";
+
+        // Get references to our HTML elements
+        const chatContainer = document.getElementById("chat-container");
+        const chatOutput = document.getElementById("chat-output");
+        const userInput = document.getElementById("user-input");
+        const sendButton = document.getElementById("send-button");
+        const modelSelect = document.getElementById("model-select");
+        const loadModelButton = document.getElementById("load-model-button");
+
+        // Article extraction elements
+        const articleUrl = document.getElementById("article-url");
+        const extractButton = document.getElementById("extract-button");
+        const extractionStatus = document.getElementById("extraction-status");
+        const articleContent = document.querySelector(".article-content");
+        const articleTitle = document.getElementById("article-title");
+        const articleText = document.getElementById("article-text");
+        const llmPrompt = document.querySelector(".llm-prompt");
+        const llmPromptTextarea = document.getElementById(
+          "llm-prompt-textarea"
+        );
+        const sendPromptButton = document.getElementById("send-prompt-button");
+        const llmResponse = document.getElementById("llm-response");
+        const responseContent = document.getElementById("response-content");
+
+        let engine;
+        let extractedArticleContent = "";
+
+        // Dummy CORS proxy options
+        const corsProxies = [
+          (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+          (url) =>
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(
+              url
+            )}`,
+          (url) => `https://thingproxy.freeboard.io/fetch/${url}`,
+        ];
+
+        //  Token counting
+        const countTokens = (text) => {
+          try {
+            return encode(text).length;
+          } catch (error) {
+            console.error("Error counting tokens:", error);
+            return Math.ceil(text.length / 4); // Rough estimate fallback
+          }
+        };
+
+        //  Mozilla Readability for article extraction
+        const extractArticleWithReadability = (html, url) => {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            // Create a Readability object
+            const reader = new Readability(doc, {
+              debug: false,
+              maxElemsToParse: 0,
+              nbTopCandidates: 5,
+              charThreshold: 500,
+              classesToPreserve: [],
+            });
+
+            // Parse the article
+            const article = reader.parse();
+
+            if (article) {
+              const content = article.textContent || "";
+              const tokenCount = countTokens(content);
+
+              return {
+                title: article.title || "Article",
+                content: content,
+                excerpt: article.excerpt || "",
+                tokenCount: tokenCount,
+              };
+            } else {
+              throw new Error("Could not parse article with Readability");
+            }
+          } catch (error) {
+            console.error("Readability extraction failed:", error);
+            throw error;
+          }
+        };
+
+        //  Handle model loading
+        const handleLoadModel = async () => {
+          const selectedModel = modelSelect.value;
+
+          // Show loading status
+          loadingStatus.style.display = "block";
+          loadingStatus.innerText = "Initializing Web LLM Engine...";
+          modelSelection.style.display = "none";
+          loadModelButton.disabled = true;
+
+          const initProgressCallback = (initProgress) => {
+            loadingStatus.innerText = `${initProgress.text}`;
+          };
+
+          const chatOpts = {
+            temperature: 0.1, // lower for deterministic output
+            repetition_penalty: 1.1,
+            top_p: 0.9,
+          };
+
+          try {
+            engine = await CreateMLCEngine(selectedModel, {
+              initProgressCallback: initProgressCallback,
+            });
+
+            //  Model is loaded, so switch the UI
+            loadingStatus.style.display = "none";
+            chatContainer.style.display = "block";
+            articleSection.style.display = "block";
+          } catch (error) {
+            loadingStatus.innerText = `Error loading model: ${error.message}`;
+            modelSelection.style.display = "block";
+            loadModelButton.disabled = false;
+            console.error("Model loading error:", error);
+          }
+        };
+
+        // --- Handle article extraction ---
+        const handleExtraction = async () => {
+          const url = articleUrl.value.trim();
+          if (!url) return;
+
+          extractButton.disabled = true;
+          extractionStatus.innerText = "Extracting article content...";
+          articleContent.style.display = "none";
+          llmResponse.style.display = "none";
+
+          // Reset the Article Extractor heading
+          const articleSectionHeading = articleSection.querySelector("h3");
+          articleSectionHeading.textContent = "📰 Article Extractor";
+
+          let success = false;
+
+          // Try each CORS proxy
+          for (let i = 0; i < corsProxies.length && !success; i++) {
+            try {
+              extractionStatus.innerText = `Trying method ${i + 1}...`;
+              const proxyUrl = corsProxies[i](url);
+
+              const response = await fetch(proxyUrl, {
+                headers: {
+                  Accept:
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                  "User-Agent":
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                },
+              });
+
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+              }
+
+              const html = await response.text();
+
+              if (!html || html.length < 100) {
+                throw new Error("Empty or insufficient content");
+              }
+
+              // Use Mozilla Readability to extract article content
+              const extracted = extractArticleWithReadability(html, url);
+
+              if (extracted.content && extracted.content.length > 100) {
+                extractedArticleContent = extracted.content;
+
+                articleTitle.textContent = extracted.title;
+                articleText.textContent = extracted.content;
+
+                // Update the Article Extractor heading with token count
+                articleSectionHeading.textContent = `📰 Article Extractor (${extracted.tokenCount} tokens)`;
+
+                articleContent.style.display = "block";
+                llmPrompt.style.display = "block"; // Show the prompt area
+                extractionStatus.innerText =
+                  "Article extracted successfully with Mozilla Readability!";
+                success = true;
+              } else {
+                throw new Error("Could not extract meaningful content");
+              }
+            } catch (error) {
+              console.log(`Proxy ${i + 1} failed:`, error.message);
+              if (i === corsProxies.length - 1) {
+                extractionStatus.innerText =
+                  "Extraction failed. Please try a different URL or check if the website allows automated access.";
+              }
+            }
+          }
+
+          extractButton.disabled = false;
+        };
+
+        // --- Handle sending messages ---
+        const handleSend = async () => {
+          if (!engine) return;
+
+          const userMessage = userInput.value.trim();
+          if (!userMessage) return; // Don't send empty messages
+
+          // Display user's message
+          appendMessage(userMessage, "user-message");
+          userInput.value = ""; // Clear input
+          sendButton.disabled = true; // Disable button while bot replies
+
+          // Display a temporary "thinking" message
+          const thinkingMessage = appendMessage("Thinking...", "bot-message");
+
+          // Include extracted article content in the context if available
+          const systemPrompt = extractedArticleContent
+            ? `You are a helpful AI assistant. You have access to content from an article. Use this content to answer questions when relevant. Article content: ${extractedArticleContent}`
+            : "You are a helpful AI assistant.";
+
+          const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ];
+
+          try {
+            // Start timing
+            const startTime = performance.now();
+            const reply = await engine.chat.completions.create({ messages });
+            const endTime = performance.now();
+            const inferenceTime = endTime - startTime;
+            const botReply = reply.choices[0].message.content;
+            thinkingMessage.innerHTML = `${botReply} <div class="inference-time">${inferenceTime.toFixed(
+              0
+            )}ms </div>`;
+            console.log(
+              `Chat inference time: ${inferenceTime.toFixed(2)}ms (${(
+                inferenceTime / 1000
+              ).toFixed(2)}s)`
+            );
+          } catch (error) {
+            thinkingMessage.innerText =
+              "Error generating response. Please try again.";
+            console.error("Chat error:", error);
+          } finally {
+            sendButton.disabled = false;
+          }
+        };
+
+        // --- Handle LLM prompt submission ---
+        const handlePromptSubmission = async () => {
+          if (!engine || !extractedArticleContent) return;
+
+          const prompt = llmPromptTextarea.value.trim();
+          if (!prompt) return;
+
+          sendPromptButton.disabled = true;
+          responseContent.textContent = "Thinking...";
+          llmResponse.style.display = "block";
+
+          // Reset the LLM Response heading
+          const llmResponseHeading = llmResponse.querySelector("h5");
+          llmResponseHeading.textContent = "🤖 LLM Response";
+
+          const systemPrompt = `You are a helpful AI assistant that answers questions regarding articles. You have access to content from an article. Use this content to answer questions when relevant. Article content: ${extractedArticleContent}`;
+
+          const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ];
+
+          try {
+            const startTime = performance.now();
+            const reply = await engine.chat.completions.create({ messages });
+            const endTime = performance.now();
+            const inferenceTime = endTime - startTime;
+
+            const botReply = reply.choices[0].message.content;
+
+            // Count tokens in the response
+            const responseTokenCount = countTokens(botReply);
+
+            // Update the LLM Response heading with token count
+            llmResponseHeading.textContent = `🤖 LLM Response (${responseTokenCount} tokens)`;
+
+            responseContent.innerHTML = `${botReply}<div class="inference-time">${inferenceTime.toFixed(
+              0
+            )}ms </div>`;
+          } catch (error) {
+            responseContent.textContent =
+              "Error generating response. Please try again.";
+            console.error("LLM prompt error:", error);
+          } finally {
+            sendPromptButton.disabled = false;
+          }
+        };
+
+        // Helper function to add a message to the chat output
+        function appendMessage(text, className) {
+          const messageDiv = document.createElement("div");
+          messageDiv.classList.add("message", className);
+          messageDiv.innerText = text;
+          chatOutput.appendChild(messageDiv);
+          // Scroll to the bottom
+          chatOutput.scrollTop = chatOutput.scrollHeight;
+          return messageDiv;
+        }
+
+        // Add event listeners
+        loadModelButton.addEventListener("click", handleLoadModel);
+        extractButton.addEventListener("click", handleExtraction);
+        sendPromptButton.addEventListener("click", handlePromptSubmission);
+        articleUrl.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            handleExtraction();
+          }
+        });
+        llmPromptTextarea.addEventListener("keypress", (e) => {
+          if (e.key === "Enter" && e.ctrlKey) {
+            handlePromptSubmission();
+          }
+        });
+        sendButton.addEventListener("click", handleSend);
+        userInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            handleSend();
+          }
+        });
+      }
+
+      main();
+    </script>
+  </body>
+</html>
